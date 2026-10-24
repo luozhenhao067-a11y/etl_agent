@@ -20,6 +20,8 @@ the single-use token is consumed (Spec 5.1).
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any, Callable
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -36,7 +38,16 @@ from harness.worker.worker import ExecutionWorker, resolve_run_project
 
 Clock = Callable[..., Any]
 
-_OUTBOX_ACTOR = "harness-outbox"
+# audit_events.actor_id references users, so the dispatcher writes its
+# ledger events under the seeded svc_harness_outbox service account.
+_OUTBOX_ACTOR = "svc_harness_outbox"
+
+_logger = logging.getLogger("etl.dispatch")
+
+# A delivery (worker handling + ack) must finish inside this budget: a hung
+# step must never stall the whole dispatch beat — the lease expires and the
+# next tick retries the event instead.
+_DELIVERY_TIMEOUT_SECONDS = 20.0
 
 
 class OutboxDispatcher:
@@ -53,6 +64,7 @@ class OutboxDispatcher:
         clock: Clock = utcnow,
         batch_size: int = 20,
         lease_seconds: int = 60,
+        delivery_timeout_seconds: float = _DELIVERY_TIMEOUT_SECONDS,
     ) -> None:
         self._session_factory = session_factory
         self._outbox = outbox
@@ -62,6 +74,7 @@ class OutboxDispatcher:
         self._clock = clock
         self._batch_size = batch_size
         self._lease_seconds = lease_seconds
+        self._delivery_timeout = delivery_timeout_seconds
 
     async def dispatch_pending(self) -> dict[str, int]:
         """One dispatch pass; returns a per-outcome summary."""
@@ -87,9 +100,21 @@ class OutboxDispatcher:
                 continue
             try:
                 summary[await self._deliver(record)] += 1
-            except (HarnessError, SQLAlchemyError):
+            except (HarnessError, SQLAlchemyError) as exc:
                 # One poisoned event must not stall the batch; the lease
                 # expires and the next tick retries it.
+                _logger.warning(
+                    "outbox delivery failed: event_id=%s code=%s",
+                    record.get("event_id"),
+                    getattr(exc, "error_code", "OBX-503"),
+                    exc_info=True,
+                )
+                summary["failed"] += 1
+            except asyncio.TimeoutError:
+                _logger.warning(
+                    "outbox delivery timed out: event_id=%s (retry on next tick)",
+                    record.get("event_id"),
+                )
                 summary["failed"] += 1
         return summary
 
@@ -97,15 +122,18 @@ class OutboxDispatcher:
 
     async def _deliver(self, record: dict[str, Any]) -> str:
         event_id = record["event_id"]
-        lease = await self._claim(event_id)
+        lease = await asyncio.wait_for(
+            self._claim(event_id), timeout=self._delivery_timeout
+        )
         if lease is None:
             return "skipped"  # leased elsewhere or no longer dispatchable
 
         lease_id = lease["lease_id"]
         token = self._commands.pop(record.get("aggregate_id") or "")
         try:
-            outcome = await self._worker.handle_command(
-                record, capability_token=token
+            outcome = await asyncio.wait_for(
+                self._worker.handle_command(record, capability_token=token),
+                timeout=self._delivery_timeout,
             )
         except HarnessError as exc:
             self._restore(record, token)
@@ -123,6 +151,16 @@ class OutboxDispatcher:
                 event_id, lease_id, retryable=True, code="OBX-503", reason=str(exc)
             )
             return "failed"
+        except asyncio.TimeoutError:
+            # A hung delivery step must not dead-letter the command nor stall
+            # the beat: the run state is unknown, so restore the token and
+            # let the lease expiry retry (the Worker's status gate keeps
+            # redelivery idempotent — Spec 5.5 step 10).
+            self._restore(record, token)
+            await self._fail(
+                event_id, lease_id, retryable=True, code="OBX-504", reason="delivery timed out"
+            )
+            return "failed"
         except Exception as exc:  # unexpected bug: dead-letter, never spin
             # No restore: a dead-lettered command is never redelivered.
             await self._fail(
@@ -131,7 +169,9 @@ class OutboxDispatcher:
             return "failed"
 
         try:
-            await self._ack(record, lease_id, outcome)
+            await asyncio.wait_for(
+                self._ack(record, lease_id, outcome), timeout=self._delivery_timeout
+            )
         except HarnessError:
             # The run may already be running; redelivery is idempotent (the
             # Worker's status gate acks duplicates without mutation). The
@@ -139,6 +179,12 @@ class OutboxDispatcher:
             self._restore(record, token)
             await self._fail(
                 event_id, lease_id, retryable=True, code="OBX-503", reason="ack failed"
+            )
+            return "failed"
+        except asyncio.TimeoutError:
+            self._restore(record, token)
+            await self._fail(
+                event_id, lease_id, retryable=True, code="OBX-504", reason="ack timed out"
             )
             return "failed"
 

@@ -21,6 +21,8 @@ _CORRELATION_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 # Spec 8.10 Beat cadence for the Outbox dispatch pass (kernel mode only).
 _DISPATCH_INTERVAL_SECONDS = 2.0
+# Spec 8.10 supervision_tick cadence: refresh running runs from the engine.
+_SUPERVISION_INTERVAL_SECONDS = 2.0
 
 _logger = logging.getLogger("etl.dispatch")
 
@@ -31,10 +33,10 @@ def create_app(container: Container | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_application: FastAPI):
-        """Spec 5.5 step 4 / 8.10: a periodic Outbox dispatch pass."""
+        """Spec 5.5 step 4 / 8.10: periodic Outbox dispatch + supervision."""
 
         dispatcher = resolved.dispatcher
-        task = None
+        tasks = []
         if dispatcher is not None:
 
             async def _dispatch_loop() -> None:
@@ -45,12 +47,32 @@ def create_app(container: Container | None = None) -> FastAPI:
                         _logger.warning("outbox dispatch pass failed", exc_info=True)
                     await asyncio.sleep(_DISPATCH_INTERVAL_SECONDS)
 
-            task = asyncio.create_task(_dispatch_loop())
+            tasks.append(asyncio.create_task(_dispatch_loop()))
+            worker = resolved.worker
+
+            async def _supervision_loop() -> None:
+                # Spec 8.10 supervision_tick: refresh running runs from the
+                # engine so dispatched commands reach a terminal state.
+                while True:
+                    try:
+                        await worker.supervise_running()
+                    except Exception:  # noqa: BLE001 - the beat must survive
+                        _logger.warning("supervision pass failed", exc_info=True)
+                    await asyncio.sleep(_SUPERVISION_INTERVAL_SECONDS)
+
+            tasks.append(asyncio.create_task(_supervision_loop()))
         try:
             yield
         finally:
-            if task is not None:
+            for task in tasks:
                 task.cancel()
+            # In-flight engine jobs / evaluations finish before the loop dies.
+            for closer in (resolved.exec, resolved.evaluation):
+                if closer is not None and hasattr(closer, "aclose"):
+                    try:
+                        await closer.aclose()
+                    except Exception:  # noqa: BLE001 - shutdown never blocks
+                        _logger.warning("background close failed", exc_info=True)
 
     app = FastAPI(
         title=settings.api_title,

@@ -21,6 +21,7 @@ Persistence split:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -34,6 +35,8 @@ from harness.core.replay_redis import RedisReplayGuard
 
 # Session factory: sessionmaker or any callable returning a SQLAlchemy Session.
 SessionFactory = Callable[[], Any]
+
+_logger = logging.getLogger("etl.harness")
 
 
 class KernelHarnessAdapter:
@@ -219,25 +222,26 @@ class KernelHarnessAdapter:
     async def _record_denial(
         self, intent: dict[str, Any], exc: HarnessError
     ) -> None:
-        """Persist a durable record of a malformed/failed PDP evaluation."""
+        """Log a malformed/failed PDP evaluation without a ledger write.
+
+        ``pdp.denied`` is not in the Spec 12.2 audit catalogue, and contract
+        §9.2 forbids persisting unregistered event types until confirmed —
+        so the denial is only logged here. It still fails closed: the raised
+        ``PDP-*`` error is the caller-visible outcome, and a DENY decision
+        that completes evaluation is durably recorded as the registered
+        ``pdp.decision.recorded``.
+        """
         actor_id = (
             (intent.get("actor_id") or intent.get("sub"))
             if isinstance(intent, dict)
             else None
         )
-        if not isinstance(intent, dict) or not intent.get("project_id") or not actor_id:
-            return
-        await self._append_entry(
-            {
-                "project_id": intent["project_id"],
-                "actor_id": actor_id,
-                "event_type": "pdp.denied",
-                "resource_type": "tool_intent",
-                "resource_id": str(intent.get("tool") or "unknown"),
-                "payload_digest": digest_of(
-                    {"error_code": exc.error_code, "tool": intent.get("tool")}
-                ),
-            }
+        _logger.warning(
+            "pdp evaluation denied: error_code=%s tool=%s project_id=%s actor_id=%s",
+            exc.error_code,
+            intent.get("tool") if isinstance(intent, dict) else None,
+            intent.get("project_id") if isinstance(intent, dict) else None,
+            actor_id,
         )
 
 

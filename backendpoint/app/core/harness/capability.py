@@ -299,15 +299,14 @@ class CapabilityService:
         applicant_id: str | None = None,
         required_slots: tuple[str, ...] | None = None,
     ) -> None:
-        approved = [
-            fact
-            for fact in facts
-            if isinstance(fact, dict)
-            # Spec 4.6: approval status is uppercase; normalize defensively.
-            and (
-                str(fact.get("decision") or fact.get("status") or "").upper() == "APPROVED"
-            )
-        ]
+        def _is_approved(fact: dict[str, Any]) -> bool:
+            # Spec 4.6 status is uppercase ("APPROVED"); the API-13 decision
+            # enum is the verb ("approve"). Both spellings are accepted here
+            # so a fact encoded either way counts exactly once.
+            raw = str(fact.get("decision") or fact.get("status") or "").upper()
+            return raw in ("APPROVED", "APPROVE")
+
+        approved = [fact for fact in facts if isinstance(fact, dict) and _is_approved(fact)]
         approvers = {fact.get("approver_id") for fact in approved if fact.get("approver_id")}
         if len(approved) < 2 or len(approvers) < 2:
             raise HarnessError(

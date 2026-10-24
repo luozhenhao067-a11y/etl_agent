@@ -361,6 +361,14 @@ EXTRA_USERS = [
     ("user_demo_023", "maker05", "吕二五", "active", "2026-10-11T10:00:00+08:00"),
     # Boundary: disabled service account, never a project member.
     ("user_demo_024", "svc_etl", "施二六", "disabled", "2026-10-12T09:00:00+08:00"),
+    # Harness system actors (2026-10-24): audit_events.actor_id references
+    # users, so the Worker / Outbox dispatcher ledger events need real
+    # service accounts — otherwise every run.started / outbox.event.* write
+    # fails the FK on PostgreSQL (SQLite tests never enforced it).
+    ("svc_harness_worker", "svc_harness_worker", "Harness 执行 Worker（系统）",
+     "active", "2026-10-24T00:00:00+08:00"),
+    ("svc_harness_outbox", "svc_harness_outbox", "Harness Outbox 派发器（系统）",
+     "active", "2026-10-24T00:00:00+08:00"),
 ]
 
 EXTRA_PROJECTS = [

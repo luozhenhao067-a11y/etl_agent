@@ -556,7 +556,11 @@ def _seed_preparations(state: MemoryState, project_id: str) -> None:
 
 
 def _seed_designs(state: MemoryState) -> None:
-    state.designs["ver_demo_001"] = {
+    # ver_demo_001 is the committed demo chain; ver_demo_003 stays free of a
+    # SQL preparation so the live prepare → approve → commit → execute chain
+    # stays demoable end to end (2026-10-24 真库联调).
+    for version_id in ("ver_demo_001", "ver_demo_003"):
+        state.designs[version_id] = {
         "etl_plan_json": {
             "source": "mysql_orders",
             "target": "doris_orders",
@@ -576,7 +580,7 @@ def _seed_designs(state: MemoryState) -> None:
         },
         "diff": None,
         "masking": {"phone": {"before": "string", "after": "masked_string"}},
-    }
+        }
 
 
 def _seed_benchmarks(state: MemoryState) -> None:

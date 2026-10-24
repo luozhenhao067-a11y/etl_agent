@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-24",
+  "mode": "HARNESS=kernel + STORAGE=postgres + EXEC_ENGINE=local",
+  "environment": "PostgreSQL/Redis 于虚拟机 192.168.100.128（口令不入档）",
+  "server": "uvicorn app.main:app --env-file harness/.env（本机 127.0.0.1:8010）",
+  "health": {
+    "status": "ok",
+    "components": {
+      "api": "ok",
+      "database": "ok (SELECT 1 实测 1-2ms)",
+      "harness": "ok (kernel)",
+      "secret_provider": "ok (EnvSecretPort)",
+      "execution_engine": "ok (LocalAsyncExecAdapter)"
+    }
+  },
+  "chain": [
+    {"step": "API-08 create pipeline", "status": 201, "pipeline_id": "pipe_1792832623***"},
+    {"step": "API-12 prepare (ver_demo_003)", "status": 201, "preparation_id": "prep_1792832718***", "slots": ["data_checker", "security_checker"], "approval_id_in_slot": true},
+    {"step": "API-13 decision ×2", "status": 200, "result": "APPROVED/APPROVED"},
+    {"step": "API-14 commit", "status": 201, "execution_run_id": "run_1792832720***", "capability_digest": "0307786b29bd65d7***（仅摘要）"},
+    {"step": "API-14 commit replay（同键）", "status": 201, "result": "同一 execution_run_id（幂等）"},
+    {"step": "API-15 run 状态推进", "transitions": ["queued", "running (engine_job_id=eng_…4017)", "succeeded"]},
+    {"step": "API-15 final", "status": "succeeded", "metrics": {"input_records": 8221, "output_records": 8216, "error_records": 5, "bytes_processed": 4359270}},
+    {"step": "API-18 benchmark", "status": 201, "benchmark_run_id": "bench_1792832726***", "async": true}
+  ],
+  "postgres_evidence": {
+    "execution_runs": "status=succeeded, engine_job_id 非空, 四项指标 + started_at/finished_at 落库",
+    "outbox_events": "status=CONSUMED, published_at/consumed_at 齐备",
+    "audit_ledger_seq_37_53": [
+      "preparation.created", "approval.decision.recorded ×2", "approval.completed",
+      "approval.validated", "capability.issued", "run.committed", "outbox.event.created",
+      "run.started(svc_harness_worker)", "outbox.event.published(svc_harness_outbox)",
+      "outbox.event.consumed(svc_harness_outbox)", "run.succeeded(svc_harness_worker)",
+      "benchmark.run.started", "benchmark.run.completed"
+    ],
+    "hash_chain": "57/57 事件 prev_event_hash 连续、event_hash 按项目 canonical_json 复算全部一致"
+  },
+  "redis_evidence": {
+    "keys": [
+      "harness:replay:capability:cap_…:<token_digest> → CONSUMED (kind=capability, 单次消费)",
+      "harness:replay:benchmark.run:user_demo_003:<key> → CONSUMED",
+      "harness:replay:<idempotency-key> → RESERVED (kind=ops, TTL 300s 自减)"
+    ],
+    "replay_after_restart": "进程重启后以已消费键重放 API-18 → RG-409（Redis 原子防重放真实生效）"
+  },
+  "conn_test_real": {
+    "api": "POST /api/v1/connections/conn_demo_003/tests (postgresql)",
+    "result": {"success": true, "latency_ms": 12},
+    "fail_closed": "conn_demo_001 (mysql) 无驱动适配器 → TB-503；未配置 Secret 的引用 → SECRET-503"
+  },
+  "fail_closed_recovery": {
+    "scenario": "令牌交接存储因进程重启清空后重投递",
+    "result": "run.failed CAP-403（svc_harness_worker 落账）→ outbox CONSUMED；单次令牌丢失绝不重放（Spec 5.1）"
+  },
+  "defects_found_and_fixed_live": [
+    "prepare_tx 读 repo 行取 version_id 用错键（id vs version_id）→ 兼容两种形态",
+    "approval_slots 不含 approval_id，API-13 无法从 API-12 响应驱动 → 槽位补 approval_id（契约 item 字段待确认，增量字段）",
+    "capability 审批事实校验把 API-13 动词 approve ('APPROVE') 与状态 'APPROVED' 混淆 → 两种拼写均接受",
+    "audit_events.actor_id 外键要求 users 存在，Worker/Outbox 系统事件无对应账号 → 建 svc_harness_worker/svc_harness_outbox 服务账号并补进建表 seed",
+    "Outbox 派发逐事件异常静默且无投递超时 → 逐事件 warning 日志 + 20s 投递/ack 超时（超时重试、不死信）"
+  ],
+  "sanitization": "本档不含口令、DSN、Capability 明文、jti 全值、原始主机凭据；engine_job_id/事件 id 截断展示"
+}

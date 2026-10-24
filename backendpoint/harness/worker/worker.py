@@ -56,7 +56,9 @@ _STATUS_FAILED = "failed"
 # (the single-use token is already consumed — Spec 5.1: 失败不返还令牌).
 _DISPATCHABLE_STATUSES = {"queued", "dispatched"}
 
-_WORKER_ACTOR = "harness-worker"
+# audit_events.actor_id references users, so the Worker writes its ledger
+# events under the seeded svc_harness_worker service account.
+_WORKER_ACTOR = "svc_harness_worker"
 
 _METRIC_KEYS = (
     "input_records",
@@ -240,6 +242,10 @@ class ExecutionWorker:
         except NotImplementedError:
             # No engine wired: an honest no-op, never a fabricated state.
             return {"result": "unavailable"}
+        except HarnessError:
+            # The engine rejected the lookup (unknown job, engine outage):
+            # stay honest — the run keeps its state, supervision reconciles.
+            return {"result": "unavailable"}
         engine_status = str(report.get("status") or "").lower()
         metrics = {
             key: report[key]
@@ -256,6 +262,39 @@ class ExecutionWorker:
             )
             return {"result": "completed", "status": "failed"}
         return {"result": "running", "engine_status": report.get("status")}
+
+    async def supervise_running(self, limit: int = 50) -> dict[str, int]:
+        """One supervision pass (Spec 8.10 ``supervision_tick``).
+
+        Refreshes every ``running`` run from the engine; runs whose engine
+        has reached a terminal state are closed out by :meth:`poll_run`.
+        Returns the per-outcome summary. Without an engine adapter this is
+        an honest no-op per run (``unavailable``) — never a fabricated state.
+        """
+
+        session = self._session_factory()
+        try:
+            run_ids = (
+                session.execute(
+                    select(ExecutionRun.id)
+                    .where(ExecutionRun.status == _STATUS_RUNNING)
+                    .order_by(ExecutionRun.updated_at)
+                    .limit(limit)
+                )
+                .scalars()
+                .all()
+            )
+        finally:
+            session.close()
+        summary = {"completed": 0, "running": 0, "unavailable": 0, "skipped": 0}
+        for run_id in run_ids:
+            outcome = await self.poll_run(run_id)
+            result = outcome.get("result")
+            if result in summary:
+                summary[result] += 1
+            elif result == "missing":
+                summary["skipped"] += 1
+        return summary
 
     # -- state transitions (each one transaction, run + audit atomically) ------
 

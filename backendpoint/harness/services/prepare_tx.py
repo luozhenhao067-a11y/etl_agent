@@ -70,7 +70,10 @@ class PrepareOrchestrator:
         decision: dict[str, Any],
     ) -> dict[str, Any]:
         """Create (or idempotently return) the Preparation with its slots."""
-        version_id = version["version_id"]
+        # The API passes the repository row (keyed ``id``); the test fixtures
+        # pass the contract shape (``version_id``). Both are accepted here so
+        # the orchestrator never guesses which layer produced the dict.
+        version_id = version.get("version_id") or version["id"]
         preparation_id = new_id("prep")
         rollback_plan = self._derive_rollback_plan(version)
 
@@ -197,6 +200,10 @@ class PrepareOrchestrator:
             "rollback_plan": rollback_plan,
             "created_at": isoformat(now),
         }
+        # Each slot carries its approval_request id so API-13 is drivable
+        # from the prepare response alone (契约: item 字段待确认).
+        for slot, approval_id in zip(slots, approval_ids):
+            slot["approval_id"] = approval_id
         return {
             "preparation": mirror,
             "approval_slots": slots,
@@ -278,7 +285,11 @@ class PrepareOrchestrator:
         )
         slots = (
             session.execute(
-                select(ApprovalRequest.required_role, ApprovalRequest.approver_id)
+                select(
+                    ApprovalRequest.required_role,
+                    ApprovalRequest.approver_id,
+                    ApprovalRequest.id,
+                )
                 .where(ApprovalRequest.preparation_id == row.id)
                 .order_by(ApprovalRequest.required_role)
             )
@@ -299,8 +310,8 @@ class PrepareOrchestrator:
                 "created_at": isoformat(row.created_at),
             },
             "approval_slots": [
-                {"role_slot": role, "approver_id": approver}
-                for role, approver in slots
+                {"role_slot": role, "approver_id": approver, "approval_id": approval_id}
+                for role, approver, approval_id in slots
             ],
             "created": False,
         }

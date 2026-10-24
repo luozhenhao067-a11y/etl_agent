@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select
 
+from app.adapters.local.exec import LocalAsyncExecAdapter
 from app.adapters.stub.secret import StubSecretAdapter
 from app.core.harness.errors import HarnessError
 from app.models.tables import AuditEvent, ExecutionRun
@@ -358,6 +359,70 @@ async def test_run_cancel_terminal_state_rejected(
         )
     assert rejected.value.error_code == "OPS-409"
     assert rejected.value.details["status"] == "succeeded"
+
+
+async def test_run_cancel_dispatched_run_kills_engine_job(
+    kernel, seeded_engine, session_factory, ledger
+):
+    """A dispatched run is cancelled through the ExecPort, then recorded."""
+
+    engine = LocalAsyncExecAdapter(duration_seconds=5.0)
+    register_tool_handlers(
+        kernel,
+        session_factory=session_factory,
+        ledger=ledger,
+        secret=StubSecretAdapter(),
+        exec_port=engine,
+    )
+    submitted = await engine.submit_job(
+        {"execution_run_id": "run_e1", "hocon": "source {} sink {}", "artifact_digest": "a" * 64}
+    )
+    _seed_run(session_factory, "run_e1", status="running", engine_job_id=submitted["engine_job_id"])
+    intent = _intent(
+        "run.cancel", {"execution_run_id": "run_e1", "reason_digest": "b" * 64}
+    )
+    decision = kernel.pdp.decide(intent)
+
+    result = await kernel.broker.execute(
+        intent, policy_decision=decision, idempotency_key="cancel-key-4"
+    )
+
+    assert result["status"] == "SUCCEEDED"
+    engine_report = await engine.query_status(submitted["engine_job_id"])
+    assert engine_report["status"] == "CANCELLED"
+    with session_factory() as session:
+        row = session.execute(
+            select(ExecutionRun).where(ExecutionRun.id == "run_e1")
+        ).scalar_one()
+        assert row.status == "cancelled"
+    # cancel_scope distinguishes the engine kill from a control-plane cancel.
+    assert _ledger_types(session_factory) == ["run.cancel_requested", "run.cancelled"]
+
+
+async def test_run_cancel_dispatched_run_without_engine_fails_closed(
+    kernel, seeded_engine, session_factory, ledger
+):
+    """No engine wired: the cancel of a dispatched run refuses (TB-503)."""
+
+    _registered_kernel(kernel, session_factory, ledger)
+    _seed_run(session_factory, "run_e2", status="running", engine_job_id="eng_gone")
+    intent = _intent(
+        "run.cancel", {"execution_run_id": "run_e2", "reason_digest": "b" * 64}
+    )
+    decision = kernel.pdp.decide(intent)
+
+    with pytest.raises(HarnessError) as unavailable:
+        await kernel.broker.execute(
+            intent, policy_decision=decision, idempotency_key="cancel-key-5"
+        )
+    assert unavailable.value.error_code == "TB-503"
+    # Nothing was written: the run stays running, no ledger events.
+    with session_factory() as session:
+        row = session.execute(
+            select(ExecutionRun).where(ExecutionRun.id == "run_e2")
+        ).scalar_one()
+        assert row.status == "running"
+    assert _ledger_types(session_factory) == []
 
 
 # -- shadow.rollback ----------------------------------------------------------

@@ -161,5 +161,16 @@ async def run_benchmark(
         status=output["status"],
         started_at=output["started_at"],
     )
+    if container.evaluation is not None:
+        # The evaluation runs asynchronously (契约 §6 API-18: 异步执行); the
+        # service closes the run out and records benchmark.run.completed.
+        container.evaluation.start(
+            benchmark_run_id=benchmark_run_id,
+            suite_id=payload.suite_id,
+            layer=payload.layer,
+            dataset_version=payload.dataset_version,
+            project_id=actor.project_id or "",
+            actor_id=actor.user_id,
+        )
     remember_success(container.idempotency, scope, key, digest, 201, data.model_dump())
     return envelope(request, data.model_dump())

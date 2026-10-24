@@ -64,14 +64,16 @@ def make_benchmark_run_handler(*, clock: Clock = utcnow) -> Any:
 
 
 def make_run_cancel_handler(
-    *, session_factory: Any, ledger: Any, clock: Clock = utcnow
+    *, session_factory: Any, ledger: Any, exec_port: Any, clock: Clock = utcnow
 ) -> Any:
-    """``run.cancel``: control-plane cancel of a never-dispatched run.
+    """``run.cancel``: cancel a run and its dispatched engine job.
 
     Writes ``status=cancelled`` + ``run.cancel_requested`` / ``run.cancelled``
-    ledger events in one transaction. With a dispatched engine job the worker
-    would kill the job first and write ``run.cancelled`` itself; until an
-    engine adapter exists that path fails closed.
+    ledger events in one transaction. A run that was actually dispatched
+    (``engine_job_id`` set) is killed through the ExecPort first; with no
+    engine adapter wired that call raises ``NotImplementedError`` and the
+    cancel fails closed (TB-503) — a cancel can never silently skip the
+    engine kill.
     """
 
     async def handler(intent: dict[str, Any]) -> dict[str, Any]:
@@ -102,12 +104,26 @@ def make_run_cancel_handler(
                     {"status": row.status},
                 )
             if row.engine_job_id:
-                raise ToolUnavailableError(
-                    "no engine adapter is available to kill a dispatched run"
-                )
+                # Kill the dispatched engine job before recording the cancel;
+                # a stub port without an engine surfaces as TB-503 here.
+                if exec_port is None:
+                    raise ToolUnavailableError(
+                        "no engine adapter is available to kill a dispatched run"
+                    )
+                try:
+                    await exec_port.cancel_job(
+                        row.engine_job_id, "run.cancel via Tool Broker"
+                    )
+                except NotImplementedError as exc:
+                    raise ToolUnavailableError(
+                        "no engine adapter is available to kill a dispatched run"
+                    ) from exc
             row.status = "cancelled"
             row.finished_at = now
             row.updated_at = now
+            cancel_scope = (
+                "engine_and_control_plane" if row.engine_job_id else "control_plane"
+            )
             await ledger.append(
                 session,
                 {
@@ -130,7 +146,7 @@ def make_run_cancel_handler(
                     "resource_type": "execution_run",
                     "resource_id": run_id,
                     "payload_digest": digest_of(
-                        {"execution_run_id": run_id, "cancel_scope": "control_plane"}
+                        {"execution_run_id": run_id, "cancel_scope": cancel_scope}
                     ),
                 },
             )

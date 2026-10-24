@@ -26,6 +26,7 @@ from app.adapters.memory.repository import InMemoryRepository
 from app.adapters.memory.seed import seed_all, seed_state
 from app.adapters.memory.state import MemoryState
 from app.adapters.env import EnvSecretAdapter
+from app.adapters.local.exec import LocalAsyncExecAdapter
 from app.adapters.sql.repository import SqlRepository
 from app.adapters.stub.exec import StubExecAdapter
 from app.adapters.stub.harness import StubHarnessAdapter
@@ -48,6 +49,7 @@ from harness.core.outbox_sql import SqlOutbox
 from harness.core.redis_client import create_redis_client
 from harness.core.replay_redis import RedisReplayGuard
 from harness.services.commit_tx import CommitOrchestrator
+from harness.services.evaluation import BenchmarkEvaluationService
 from harness.services.gateway import KernelHarnessAdapter
 from harness.services.prepare_tx import PrepareOrchestrator
 from harness.tools import register_tool_handlers
@@ -74,6 +76,8 @@ class Container:
     command_store: Any | None = None
     worker: Any | None = None
     dispatcher: Any | None = None
+    # API-18 evaluation service (Spec 11.1 run_benchmark); None under stub.
+    evaluation: Any | None = None
     started_at: object = field(default_factory=now)
 
     async def record_audit(
@@ -126,9 +130,13 @@ def build_container(
     # Memory/stub mode keeps the fail-closed stub; kernel mode swaps in the
     # environment-backed provider below (shared by the Tool Broker handlers).
     secret: SecretPort = StubSecretAdapter()
-    # The execution engine stays stubbed until a real adapter is wired; the
-    # Worker surfaces its absence as an honest TB-503 failure.
-    exec_port: ExecPort = StubExecAdapter()
+    # The execution engine: the stub honestly fails every submission
+    # (EXEC_ENGINE_NOT_READY / TB-503); EXEC_ENGINE=local (kernel mode)
+    # wires the in-process async adapter so Outbox commands are truly
+    # consumed and runs reach a terminal state through supervision.
+    exec_port: ExecPort = (
+        LocalAsyncExecAdapter() if resolved.exec_engine == "local" else StubExecAdapter()
+    )
 
     if repository is not None:
         # Injected backend (test fixtures): seed both layers inside it.
@@ -150,6 +158,7 @@ def build_container(
     command_store: Any | None = None
     worker: Any | None = None
     dispatcher: Any | None = None
+    evaluation: Any | None = None
     if resolved.harness == "kernel":
         # Fail-fast: kernel mode boots only on the SQL path with a persisted
         # signing key; silently degrading would violate fail-closed.
@@ -226,6 +235,13 @@ def build_container(
             session_factory=session_factory,
             ledger=ledger,
             secret=secret,
+            exec_port=exec_port,
+        )
+        # API-18 评测服务 (Spec 11.1 run_benchmark): closes accepted
+        # benchmark runs out with the registered benchmark.run.completed
+        # ledger event; in stub mode the API keeps failing closed (BENCH-503).
+        evaluation = BenchmarkEvaluationService(
+            append_ledger=harness.append_ledger, runs=state.benchmark_runs
         )
     else:
         harness = StubHarnessAdapter()
@@ -245,4 +261,5 @@ def build_container(
         command_store=command_store,
         worker=worker,
         dispatcher=dispatcher,
+        evaluation=evaluation,
     )

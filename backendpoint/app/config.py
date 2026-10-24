@@ -42,6 +42,11 @@ class Settings:
     # fail-closed stub; it requires STORAGE=postgres plus DATABASE_URL,
     # REDIS_URL and the Ed25519 signing keys.
     harness: str = "stub"  # "stub" | "kernel"
+    # ExecPort implementation: "stub" keeps the honest EXEC_ENGINE_NOT_READY
+    # failure (Spec 5.6 fail-closed), "local" wires the in-process async
+    # engine adapter (managed simulated jobs) so Outbox commands are truly
+    # consumed end to end. Only meaningful with HARNESS=kernel.
+    exec_engine: str = "stub"  # "stub" | "local"
     # Data environment used in ToolIntents when the API contract carries no
     # environment fact (prepare, file.parse); one of prod, preprod, test.
     data_environment: str = "test"
@@ -64,6 +69,10 @@ class Settings:
             raise ValueError(
                 f"HARNESS must be 'stub' or 'kernel'; got {self.harness!r}"
             )
+        if self.exec_engine not in ("stub", "local"):
+            raise ValueError(
+                f"EXEC_ENGINE must be 'stub' or 'local'; got {self.exec_engine!r}"
+            )
         if self.harness == "kernel" and self.storage != "postgres":
             raise ValueError("HARNESS=kernel requires STORAGE=postgres")
         if self.data_environment not in ("prod", "preprod", "test"):
@@ -85,6 +94,7 @@ class Settings:
             api_version=os.getenv("API_VERSION", "1.0.0"),
             storage=os.getenv("STORAGE", "memory").strip().lower(),
             harness=os.getenv("HARNESS", "stub").strip().lower(),
+            exec_engine=os.getenv("EXEC_ENGINE", "stub").strip().lower(),
             data_environment=os.getenv("DATA_ENVIRONMENT", "test").strip().lower(),
             file_storage_dir=os.getenv("FILE_STORAGE_DIR", "./data/files").strip() or "./data/files",
         )

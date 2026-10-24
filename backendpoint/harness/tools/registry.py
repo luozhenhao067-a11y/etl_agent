@@ -28,6 +28,7 @@ def register_tool_handlers(
     session_factory: Any,
     ledger: Any,
     secret: Any,
+    exec_port: Any | None = None,
     clock: Any | None = None,
 ) -> tuple[str, ...]:
     """Register all implemented tool handlers on the kernel's broker."""
@@ -39,7 +40,7 @@ def register_tool_handlers(
         "file.parse": make_file_parse_handler(**kwargs),
         "benchmark.run": make_benchmark_run_handler(**kwargs),
         "run.cancel": make_run_cancel_handler(
-            session_factory=session_factory, ledger=ledger, **kwargs
+            session_factory=session_factory, ledger=ledger, exec_port=exec_port, **kwargs
         ),
         "shadow.rollback": make_shadow_rollback_handler(
             session_factory=session_factory, ledger=ledger, **kwargs

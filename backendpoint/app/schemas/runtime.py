@@ -27,6 +27,9 @@ class PrepareRequest(ApiModel):
 class ApprovalSlot(ApiModel):
     role_slot: str
     approver_id: str
+    # 契约: item 字段待确认 — the backing approval_request id, so API-13 is
+    # drivable from the API-12 response alone.
+    approval_id: str | None = None
 
 
 class PrepareData(ApiModel):
