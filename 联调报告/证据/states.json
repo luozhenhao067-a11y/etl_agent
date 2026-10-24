@@ -1,0 +1,52 @@
+{
+  "maker_connections": [
+    "+ 新建连接",
+    "筛选",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "测试",
+    "编辑",
+    "上一页",
+    "下一页"
+  ],
+  "checker1_connections": [
+    "筛选",
+    "上一页",
+    "下一页"
+  ],
+  "checker1_preparations": [
+    "提交决策"
+  ],
+  "checker2_preparations": [
+    "提交决策"
+  ],
+  "ops_preparations": [
+    "提交执行（二次确认）"
+  ],
+  "ops_operations": [
+    "查询"
+  ],
+  "auditor_benchmark": [],
+  "checker2_benchmark": [
+    "触发评测"
+  ],
+  "forbidden": {
+    "set": "set",
+    "text": "🔒\n无访问权限\n无权限执行该操作\ncorrelation_id: corr_1af7dfd9327243c2"
+  },
+  "unauthorized": "会话已失效\n\n认证与登录机制待确认 P-26。演示环境提供模拟登录：\n\n模拟登录（演示）"
+}

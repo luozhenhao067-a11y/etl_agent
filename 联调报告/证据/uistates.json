@@ -1,0 +1,10 @@
+{
+  "empty": "📭\n尚未选择 Run\nRun 列表待确认 P-19；输入 Run ID 后调用 API-15。",
+  "loaded": true,
+  "loading": "加载中…",
+  "loading_loaded": true,
+  "stale_contains": true,
+  "stale_text": "📡\n数据已过期\n连续刷新失败，保留最后一次快照。\n网络连接失败，请检查网络后重试\n重试",
+  "stale_snapshot_kept": true,
+  "error": "⚠\n加载失败\n资源不存在或不属于当前项目\ncorrelation_id: corr_e2e6a6c65c2b4a4d\n重试"
+}

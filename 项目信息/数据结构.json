@@ -1,0 +1,1709 @@
+{
+  "meta": {
+    "标题": "ETL-Agent 数据集成平台 — 数据结构",
+    "生成时间": "2026-10-24T10:21:55+08:00",
+    "数据库": "postgresql+psycopg://postgres:***@192.168.100.128:5432/postgres",
+    "规范来源": "项目信息/spec.md 10.1 数据表清单、10.2 关键数据规则",
+    "模型文件": "backendpoint/app/models/tables.py（SQLAlchemy 2.0 声明式）",
+    "迁移文件": "backendpoint/migrations/versions/0001_initial_13_tables.py",
+    "演示数据脚本": "建表/seed_data.py（幂等，可重复执行）",
+    "表数量": 13,
+    "总行数": 342,
+    "说明": "行数与枚举实际取值为导出时数据库快照；演示数据覆盖正常/异常/边界场景，敏感值均为脱敏样式"
+  },
+  "关键数据规则": [
+    "不可变版本：is_immutable=true 后内容字段禁止修改，应用层与数据库触发器双重保护",
+    "摘要格式：artifact_digest、capability_token_digest、event_hash、prev_event_hash 均为小写 64 位十六进制 SHA256",
+    "单次执行：capability_token_digest UNIQUE，同一令牌摘要只能对应一个 Run",
+    "审批唯一：同一 preparation_id + required_role 只能有一条审批请求",
+    "审批不可撤销：已决策记录禁止更新 decision/approver_id/decided_at",
+    "账本只追加：audit_events 禁止 UPDATE/DELETE，修正以新事件追加",
+    "哈希链：每条事件引用同项目前序 event_hash，创世前缀为固定零串",
+    "计数非负：执行行数、字节数、错误数均 >= 0",
+    "敏感字段：禁止保存 Secret 明文、密码、Capability 明文、原始敏感样本",
+    "外键：project_id、version_id、preparation_id、execution_run_id、approver_id 均建立外键"
+  ],
+  "tables": [
+    {
+      "表名": "users",
+      "用途": "用户身份",
+      "对应FR": "PRD 2.8.1",
+      "行数": 24,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "username",
+          "类型": "VARCHAR(128)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "display_name",
+          "类型": "VARCHAR(128)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "email",
+          "类型": "VARCHAR(255)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "status",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [],
+      "唯一约束": [
+        [
+          "email"
+        ],
+        [
+          "username"
+        ]
+      ],
+      "检查约束": [],
+      "索引": [
+        {
+          "字段": [
+            "status"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "status": [
+          "active",
+          "disabled"
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "email",
+          "说明": "演示数据已脱敏（m***@example.com 样式）"
+        }
+      ],
+      "生命周期": "禁用不删除；保留策略待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "projects",
+      "用途": "多租户项目",
+      "对应FR": "PRD 2.8.1",
+      "行数": 6,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "name",
+          "类型": "VARCHAR(128)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "code",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "description",
+          "类型": "TEXT",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [],
+      "唯一约束": [
+        [
+          "code"
+        ]
+      ],
+      "检查约束": [],
+      "索引": [],
+      "枚举实际取值": {},
+      "敏感字段": [],
+      "生命周期": "归档字段未定义；生命周期待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "project_memberships",
+      "用途": "项目成员",
+      "对应FR": "PRD 2.8.2、2.8.11",
+      "行数": 33,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "project_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "projects.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "user_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "users.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "role",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "project_id",
+          "引用": "projects.id",
+          "ondelete": null
+        },
+        {
+          "字段": "user_id",
+          "引用": "users.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "project_id",
+          "user_id"
+        ]
+      ],
+      "检查约束": [],
+      "索引": [
+        {
+          "字段": [
+            "project_id",
+            "role"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "user_id"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "role": [
+          "auditor",
+          "checker1",
+          "checker2",
+          "maker",
+          "ops"
+        ]
+      },
+      "敏感字段": [],
+      "生命周期": "成员移除需审计；是否软删待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "project_role_grants",
+      "用途": "职责槽授权",
+      "对应FR": "PRD 2.8.2；FR-RUN-01",
+      "行数": 10,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "project_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "projects.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "user_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "users.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "role_slot",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "project_id",
+          "引用": "projects.id",
+          "ondelete": null
+        },
+        {
+          "字段": "user_id",
+          "引用": "users.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "project_id",
+          "user_id",
+          "role_slot"
+        ]
+      ],
+      "检查约束": [],
+      "索引": [
+        {
+          "字段": [
+            "project_id",
+            "role_slot"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "role_slot": [
+          "data_checker",
+          "security_checker"
+        ]
+      },
+      "敏感字段": [],
+      "生命周期": "变更需审计；历史保留待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "pipelines",
+      "用途": "Pipeline 定义",
+      "对应FR": "FR-STUDIO-01、FR-STUDIO-04",
+      "行数": 20,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "project_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "projects.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "name",
+          "类型": "VARCHAR(128)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "code",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "description",
+          "类型": "TEXT",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "status",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "project_id",
+          "引用": "projects.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "project_id",
+          "code"
+        ]
+      ],
+      "检查约束": [],
+      "索引": [
+        {
+          "字段": [
+            "project_id",
+            "status"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "status": [
+          "active",
+          "draft"
+        ]
+      },
+      "敏感字段": [],
+      "生命周期": "归档/删除待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "pipeline_versions",
+      "用途": "不可变版本",
+      "对应FR": "FR-STUDIO-04；FR-RUN-01",
+      "行数": 27,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "pipeline_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "pipelines.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "version_number",
+          "类型": "INTEGER",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "etl_plan_json",
+          "类型": "JSON",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "hocon_text",
+          "类型": "TEXT",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "artifact_digest",
+          "类型": "VARCHAR(64)",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "is_immutable",
+          "类型": "BOOLEAN",
+          "可空": false,
+          "默认": "False",
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "pipeline_id",
+          "引用": "pipelines.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "pipeline_id",
+          "version_number"
+        ]
+      ],
+      "检查约束": [
+        "artifact_digest IS NULL OR (length(artifact_digest) = 64 AND artifact_digest = lower(artifact_digest))"
+      ],
+      "索引": [
+        {
+          "字段": [
+            "artifact_digest"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "pipeline_id",
+            "created_at"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {},
+      "敏感字段": [
+        {
+          "字段": "hocon_text",
+          "说明": "可能含主机/账号信息，需脱敏（演示已用 10.20.*.* 掩码）"
+        }
+      ],
+      "生命周期": "不可变版本永久保留；删除禁止",
+      "保护机制": "is_immutable=true 后 etl_plan_json/hocon_text/artifact_digest 禁改、禁解冻，且整表禁 DELETE：DB 触发器 + ORM 守卫双重保护"
+    },
+    {
+      "表名": "pipeline_artifacts",
+      "用途": "版本制品",
+      "对应FR": "FR-STUDIO-03、FR-STUDIO-04",
+      "行数": 31,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "version_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "pipeline_versions.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "artifact_type",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "artifact_digest",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "content",
+          "类型": "TEXT",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "version_id",
+          "引用": "pipeline_versions.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "version_id",
+          "artifact_type",
+          "artifact_digest"
+        ]
+      ],
+      "检查约束": [
+        "length(artifact_digest) = 64 AND artifact_digest = lower(artifact_digest)"
+      ],
+      "索引": [
+        {
+          "字段": [
+            "version_id",
+            "artifact_type"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "artifact_type": [
+          "etl_plan",
+          "hocon"
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "content",
+          "说明": "禁止含 Secret 明文（verify_smoke.py 已扫描）"
+        }
+      ],
+      "生命周期": "随版本不可变；长期保留",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "agent_runs",
+      "用途": "Agent 运行",
+      "对应FR": "FR-STUDIO-02、FR-STUDIO-06、FR-STUDIO-07",
+      "行数": 25,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "version_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "pipeline_versions.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "thread_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "prompt",
+          "类型": "TEXT",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "status",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "step_count",
+          "类型": "INTEGER",
+          "可空": false,
+          "默认": "0",
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "error_message",
+          "类型": "TEXT",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "version_id",
+          "引用": "pipeline_versions.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [],
+      "检查约束": [
+        "step_count >= 0"
+      ],
+      "索引": [
+        {
+          "字段": [
+            "thread_id"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "version_id",
+            "created_at"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "status": [
+          "completed",
+          "interrupted",
+          "running"
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "prompt",
+          "说明": "可能含业务敏感信息"
+        },
+        {
+          "字段": "error_message",
+          "说明": "需脱敏"
+        }
+      ],
+      "生命周期": "保留用于恢复与审计；期限待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "approval_requests",
+      "用途": "审批请求",
+      "对应FR": "FR-RUN-01",
+      "行数": 50,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "preparation_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "version_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "pipeline_versions.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "required_role",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "status",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "decision",
+          "类型": "VARCHAR(32)",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "approver_id",
+          "类型": "VARCHAR(64)",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "users.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "decided_at",
+          "类型": "DATETIME",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "version_id",
+          "引用": "pipeline_versions.id",
+          "ondelete": null
+        },
+        {
+          "字段": "approver_id",
+          "引用": "users.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "preparation_id",
+          "required_role"
+        ]
+      ],
+      "检查约束": [],
+      "索引": [
+        {
+          "字段": [
+            "approver_id",
+            "status"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "preparation_id"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "version_id"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "required_role": [
+          "data_checker",
+          "security_checker"
+        ],
+        "status": [
+          "APPROVED",
+          "PENDING",
+          "REJECTED"
+        ],
+        "decision": [
+          "approve",
+          "reject",
+          null
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "decision/approver_id",
+          "说明": "审批意见可能含敏感信息，需脱敏"
+        }
+      ],
+      "生命周期": "只追加；保留策略待确认",
+      "保护机制": "已决策（decision 非 NULL）记录禁改 decision/approver_id/decided_at：DB 触发器"
+    },
+    {
+      "表名": "execution_runs",
+      "用途": "执行实例",
+      "对应FR": "FR-RUN-02、FR-RUN-03、FR-RUN-04、FR-RUN-05",
+      "行数": 26,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "version_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "pipeline_versions.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "preparation_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "capability_token_digest",
+          "类型": "VARCHAR(64)",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "status",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "engine_job_id",
+          "类型": "VARCHAR(128)",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "input_records",
+          "类型": "INTEGER",
+          "可空": false,
+          "默认": "0",
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "output_records",
+          "类型": "INTEGER",
+          "可空": false,
+          "默认": "0",
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "error_records",
+          "类型": "INTEGER",
+          "可空": false,
+          "默认": "0",
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "bytes_processed",
+          "类型": "BIGINT",
+          "可空": false,
+          "默认": "0",
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "started_at",
+          "类型": "DATETIME",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "finished_at",
+          "类型": "DATETIME",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "version_id",
+          "引用": "pipeline_versions.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "capability_token_digest"
+        ]
+      ],
+      "检查约束": [
+        "bytes_processed >= 0",
+        "capability_token_digest IS NULL OR (length(capability_token_digest) = 64 AND capability_token_digest = lower(capability_token_digest))",
+        "error_records >= 0",
+        "input_records >= 0",
+        "output_records >= 0"
+      ],
+      "索引": [
+        {
+          "字段": [
+            "engine_job_id"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "preparation_id"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "status"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "version_id",
+            "created_at"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "status": [
+          "cancelled",
+          "failed",
+          "queued",
+          "rolled_back",
+          "running",
+          "succeeded"
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "capability_token_digest",
+          "说明": "仅存 SHA256 摘要，Capability 明文绝不落库"
+        }
+      ],
+      "生命周期": "长期保留；清理策略待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "file_assets",
+      "用途": "文件资产元数据",
+      "对应FR": "FR-FILE-01、FR-FILE-02",
+      "行数": 24,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "project_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "projects.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "file_name",
+          "类型": "VARCHAR(255)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "file_path",
+          "类型": "VARCHAR(512)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "file_size",
+          "类型": "INTEGER",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "file_format",
+          "类型": "VARCHAR(32)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "schema_json",
+          "类型": "JSON",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "updated_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "project_id",
+          "引用": "projects.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [],
+      "检查约束": [
+        "file_size >= 0"
+      ],
+      "索引": [
+        {
+          "字段": [
+            "file_format"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "project_id",
+            "created_at"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "file_format": [
+          "csv",
+          "excel",
+          "json"
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "file_path/file_name",
+          "说明": "可能含敏感信息（演示已用 object://files/*** 掩码）"
+        }
+      ],
+      "生命周期": "原文件在对象存储；元数据生命周期待确认",
+      "保护机制": "无特殊保护"
+    },
+    {
+      "表名": "runtime_supervision_snapshots",
+      "用途": "运行监督快照",
+      "对应FR": "FR-RUN-02、FR-RUN-05",
+      "行数": 25,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "execution_run_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "execution_runs.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "metrics_json",
+          "类型": "JSON",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "decision",
+          "类型": "VARCHAR(64)",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "action_taken",
+          "类型": "VARCHAR(64)",
+          "可空": true,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "execution_run_id",
+          "引用": "execution_runs.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [],
+      "检查约束": [],
+      "索引": [
+        {
+          "字段": [
+            "execution_run_id",
+            "created_at"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "decision": [
+          "budget_exceeded",
+          "cancelled",
+          "within_budget"
+        ],
+        "action_taken": [
+          "cancelled",
+          "paused",
+          null
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "metrics_json",
+          "说明": "不含原始业务值，仅指标聚合"
+        }
+      ],
+      "生命周期": "只追加；保留期限待确认",
+      "保护机制": "只追加（应用层约定，无更新入口）"
+    },
+    {
+      "表名": "audit_events",
+      "用途": "审计证据账本",
+      "对应FR": "FR-RUN-03、FR-RUN-05、FR-GOV-04；PRD 2.8.6",
+      "行数": 41,
+      "字段": [
+        {
+          "字段": "id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": true,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "project_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "projects.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "actor_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": {
+            "引用": "users.id",
+            "ondelete": null
+          },
+          "唯一": null
+        },
+        {
+          "字段": "event_type",
+          "类型": "VARCHAR(128)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "resource_type",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "resource_id",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "payload_digest",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "prev_event_hash",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "event_hash",
+          "类型": "VARCHAR(64)",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        },
+        {
+          "字段": "created_at",
+          "类型": "DATETIME",
+          "可空": false,
+          "默认": null,
+          "主键": false,
+          "外键": null,
+          "唯一": null
+        }
+      ],
+      "外键汇总": [
+        {
+          "字段": "project_id",
+          "引用": "projects.id",
+          "ondelete": null
+        },
+        {
+          "字段": "actor_id",
+          "引用": "users.id",
+          "ondelete": null
+        }
+      ],
+      "唯一约束": [
+        [
+          "event_hash"
+        ]
+      ],
+      "检查约束": [
+        "length(event_hash) = 64 AND event_hash = lower(event_hash)",
+        "length(payload_digest) = 64 AND payload_digest = lower(payload_digest)",
+        "length(prev_event_hash) = 64 AND prev_event_hash = lower(prev_event_hash)"
+      ],
+      "索引": [
+        {
+          "字段": [
+            "event_type"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "project_id",
+            "created_at"
+          ],
+          "唯一": false
+        },
+        {
+          "字段": [
+            "resource_type",
+            "resource_id"
+          ],
+          "唯一": false
+        }
+      ],
+      "枚举实际取值": {
+        "event_type": [
+          "agent.run.interrupted",
+          "agent.run.resumed",
+          "agent.run.started",
+          "approval.completed",
+          "approval.decision.recorded",
+          "file.asset.parsed",
+          "file.asset.uploaded",
+          "gate.evaluated",
+          "pipeline.created",
+          "preparation.created",
+          "run.cancelled",
+          "run.cancel_requested",
+          "run.committed",
+          "run.failed",
+          "run.rollback_requested",
+          "run.rolled_back",
+          "run.started",
+          "run.succeeded",
+          "supervision.interrupted",
+          "supervision.warning",
+          "version.frozen"
+        ],
+        "resource_type": [
+          "agent_run",
+          "approval_request",
+          "execution_run",
+          "file_asset",
+          "pipeline",
+          "pipeline_version",
+          "preparation"
+        ]
+      },
+      "敏感字段": [
+        {
+          "字段": "payload_digest",
+          "说明": "仅存载荷摘要，禁止原始敏感载荷"
+        }
+      ],
+      "生命周期": "只追加；永久保留或按合规期限",
+      "保护机制": "只追加账本：DB 触发器禁 UPDATE/DELETE/TRUNCATE；ORM event.listen 抛 ImmutableRecordError；SHA256 哈希链（prev_event_hash 串联，创世为 64 个 0）"
+    }
+  ]
+}

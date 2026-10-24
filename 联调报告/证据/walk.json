@@ -1,0 +1,134 @@
+[
+  {
+    "page": "dashboard",
+    "path": "/dashboard",
+    "title": "工作台总览",
+    "heading": "工作台总览",
+    "pending": 9,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 615
+  },
+  {
+    "page": "connections",
+    "path": "/connections",
+    "title": "连接管理",
+    "heading": "连接管理",
+    "pending": 1,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 1165
+  },
+  {
+    "page": "profiles",
+    "path": "/connections/profiles",
+    "title": "元数据探查",
+    "heading": "元数据探查",
+    "pending": 2,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 589
+  },
+  {
+    "page": "files",
+    "path": "/assets/files",
+    "title": "文件资产",
+    "heading": "文件资产",
+    "pending": 2,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 356
+  },
+  {
+    "page": "studio",
+    "path": "/studio/ver_demo_002",
+    "title": "生成 Studio",
+    "heading": "生成 Studio",
+    "pending": 5,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 657
+  },
+  {
+    "page": "preparations",
+    "path": "/runs/preparations",
+    "title": "变更准备",
+    "heading": "变更准备",
+    "pending": 3,
+    "dep_unready": 1,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 596
+  },
+  {
+    "page": "executions",
+    "path": "/runs/executions",
+    "title": "运行监控",
+    "heading": "运行监控",
+    "pending": 3,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 391
+  },
+  {
+    "page": "quality",
+    "path": "/runs/quality",
+    "title": "质量诊断",
+    "heading": "质量诊断",
+    "pending": 2,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 347
+  },
+  {
+    "page": "operations",
+    "path": "/runs/operations",
+    "title": "运维操作",
+    "heading": "运维操作",
+    "pending": 2,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 413
+  },
+  {
+    "page": "benchmark",
+    "path": "/governance/benchmark",
+    "title": "安全评测与进化",
+    "heading": "安全评测与进化",
+    "pending": 8,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 647
+  },
+  {
+    "page": "evolution",
+    "path": "/governance/evolution",
+    "title": "安全进化",
+    "heading": "安全进化",
+    "pending": 2,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 355
+  },
+  {
+    "page": "audit",
+    "path": "/audit",
+    "title": "审计与证据",
+    "heading": "审计与证据",
+    "pending": 4,
+    "dep_unready": 0,
+    "error_visible": false,
+    "toast_error": "",
+    "chars": 355
+  }
+]

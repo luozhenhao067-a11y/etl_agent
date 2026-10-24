@@ -1,0 +1,40 @@
+[目的]:生成符合项目要求的模拟数据并落库
+[数据库密码]:123456
+[数据库类型]:postgres
+[背景]:
+项目信息:D:\资料\三项\ETL-Agent 数据集成平台\项目信息
+spec文档:D:\资料\三项\ETL-Agent 数据集成平台\项目信息\spec.md
+前端代码:D:\资料\三项\ETL-Agent 数据集成平台\frontend
+[具体要求]:
+严格遵循 Spec 约束：必须完全依据 spec.md 的 10.1 节设计建表及数据插入逻辑。绝对禁止创建 10.3 节标记为“待确认”的表（如 Outbox、Preparation）。
+
+技术栈与结构：使用 SQLAlchemy 2.0 声明式模型 + Alembic 迁移。代码必须放在 backendpoint/app/db/ 目录下（models.py, session.py）。连接串必须从环境变量 DATABASE_URL 读取，禁止在代码中硬编码密码。
+
+外键与级联：严格按照 Spec 10.2 建立外键关系，配置好 ondelete 策略（如 CASCADE 或 SET NULL），确保符合业务逻辑。
+
+防篡改机制：针对 audit_events 表，必须使用 SQLAlchemy event.listen 拦截 before_update 和 before_delete 并抛出异常。针对 pipeline_versions 表的 is_immutable 字段，需实现相应的只读逻辑。
+
+安全要求：users 表的 password 和涉及密钥的字段，必须使用 bcrypt 或 passlib 进行哈希后再落库，绝对禁止明文存储。
+
+接口兼容性：数据模型和字段必须与前端代码（frontend 目录下的 TS 接口或 API 请求体）以及现有的 Pydantic Schema 保持 100% 一致。
+
+
+[数据要求]:
+真实且关联的模拟数据：生成符合业务场景的 JSON 或 Python 插入脚本。数据必须具备强关联性（例如：先插入 users，再插入该用户创建的 projects，再插入属于该项目下的 pipelines），避免产生脏数据。
+
+数据类型合规：
+
+所有 SHA256 哈希字段（如指纹、版本哈希）必须生成真实的 64 位十六进制字符串（例如 hashlib.sha256(...).hexdigest()）。
+
+状态字段（如 status）必须严格使用 Spec 中定义的枚举值（如 SUCCESS, FAILED, PENDING）。
+
+时间戳字段需包含合理的间隔（例如创建时间早于更新时间）。
+
+数据量级：每张核心表（如 users, projects, pipelines, pipeline_versions）生成 3~5 条具有代表性的测试数据即可。覆盖不同状态（正常、异常、边界值）。
+
+可重复执行：插入脚本需具备幂等性（Idempotent），在执行前先清空（或检查是否存在）对应表的数据，或者封装在一个 Transaction 里，防止反复运行报主键冲突。
+
+
+
+[输出目录]:D:\资料\三项\ETL-Agent 数据集成平台\建表
+[注意事项]:保持项目的一致性

@@ -1,0 +1,135 @@
+[目的]:生成前端代码
+[背景]:
+原型图:D:\资料\三项\ETL-Agent 数据集成平台\项目信息\wireframe.pen
+接口契约:D:\资料\三项\ETL-Agent 数据集成平台\项目信息\接口契约.md
+其他见:D:\资料\三项\ETL-Agent 数据集成平台\项目信息
+[具体要求]:
+
+
+**技术栈约束**
+
+- 框架：Vue（已明确）。
+- UI 组件库、状态管理库、HTTP 客户端、图表库、构建工具：**Spec P-34 待确认，不得擅自选型**。生成时用最小依赖方案，并在 README 标注“待确认”。
+- 不引入后端模板、不引入非 Vue 框架。
+- 不因选型改变接口契约字段、路径、错误结构。
+
+**页面与路由（严格按 Spec 6.1）**
+
+必须生成以下路由，不增不减：
+
+| 路由 | 页面 | 画板 |
+|---|---|---|
+| `/dashboard` | 总览工作台 | 01 |
+| `/connections` | 连接管理 | 02 |
+| `/connections/profiles` | 元数据探查 | 03 |
+| `/assets/files` | 文件资产 | 04 |
+| `/studio/:versionId` | Pipeline Studio | 05 |
+| `/runs/preparations` | 准备与审批 | 06 |
+| `/runs/executions` | 执行与监控 | 07 |
+| `/runs/quality` | 质量与诊断 | 08 |
+| `/runs/operations` | 运维操作 | 09 |
+| `/governance/benchmark` | Benchmark 大盘 | 10 |
+| `/governance/evolution` | 安全进化管理 | 无画板，**占位页 + 待确认** |
+| 审计与证据 | 侧栏占位 | **占位页 + 待确认** |
+
+`/governance/evolution` 与审计页不得臆造布局，只做空态占位并标注“原型缺失/接口待确认”。
+
+**接口调用约束**
+
+1. 只调用契约 API-01～API-18；不得调用未定义接口。
+2. 每个页面文件顶部注释：依赖的 API ID 列表。
+3. 请求头必须带 `Authorization`、`X-Correlation-Id`；写接口带 `Idempotency-Key`。
+4. 错误统一解析 `{error_code, message, correlation_id, details}`；按 `error_code` 展示脱敏提示，不展示堆栈、主机、Secret、令牌。
+5. 401 跳登录；403 显示无权限；409 显示状态冲突；410 显示过期；422 显示字段校验；503/504 显示依赖不可用并可重试。
+6. 缺失接口（Spec P-18～P-24）用 mock 适配层，集中放 `src/api/mock/`，并在 README 列清单；不得散落在页面里硬编码假数据。
+
+**权限与角色渲染**
+
+1. 按 Spec 2.3 权限矩阵控制按钮与入口显隐。
+2. 角色来源：当前登录用户信息；认证机制待确认 P-26，先用可替换的 `useAuth` 适配层。
+3. 前端隐藏按钮不构成安全边界；写操作仍按服务端返回处理。
+4. 审批按钮按 `required_role` 与当前用户职责槽显隐；申请人审批按钮禁用并提示“申请人禁止自批”。
+5. Ops 才显示 Commit、取消、重跑、回滚、清理；Auditor 全只读、无操作按钮。
+
+**状态展示**
+
+1. 每个页面必须实现：loading、empty、error、forbidden、stale 五态。
+2. 列表页增加 filtered-empty；表单页增加 submitting、success、failed。
+3. 执行页增加 running、succeeded、failed、cancelled、queued、log-disconnected。
+4. 审批页增加 pending、partial-approved、approved、rejected、committing、committed、commit-failed。
+5. 状态徽标颜色按 Spec：成功绿、运行中蓝、待审批橙、失败/高风险红、禁用灰。
+6. 不得把原型演示数值（200MB、2M 行、5%、10min、99.0 分）写成业务默认值。
+
+**脱敏与安全**
+
+1. Secret、密码、Capability、JTI、token_digest 一律不展示、不写日志、不进 localStorage。
+2. 手机号、邮箱、姓名、证件号、主机、JDBC URL 按 Spec 12.3 掩码展示。
+3. 错误表样本、文件头、脱敏样本只展示脱敏值。
+4. 禁止在前端拼接海量数据聚合替代缺失接口。
+5. 禁止实现“跳过审批直接执行”“申请人自批”入口。
+
+**关键交互**
+
+1. 三阶段状态条：`prepare → approve → commit`，展示当前阶段与 2/2 审批状态。
+2. Studio 必须展示：LangGraph 步骤时间线、澄清表单、EtlPlan 表、HOCON 代码块（语法高亮）、DAG 容器、字段 Diff、门禁 4 项结果、冻结与提交按钮。
+3. 审批页必须展示：Preparation 冻结事实、两个独立审批卡、职责分离提示、Capability 预览（仅摘要）。
+4. 运维操作必须二次确认，回滚需输入 `ROLLBACK` 确认词，原因必填。
+5. Commit 成功只展示 `execution_run_id`、状态、`capability_digest`，不展示令牌明文。
+
+**轮询与订阅**
+
+Spec P-16 待确认。前端必须把执行状态刷新封装为可替换的 `useRunStatus` 适配层，默认用轮询占位，间隔与是否改订阅在 README 标注“待确认”，不得写死为最终方案。
+
+**工程结构建议（不改变契约）**
+
+```
+fronted/
+  src/
+    router/
+    layouts/
+    pages/            # 按路由一一对应
+    components/       # 通用组件
+    api/              # 按 API ID 封装
+    api/mock/         # 缺失接口 mock
+    composables/      # useAuth / useRunStatus / usePermission
+    stores/           # 状态管理（库待确认）
+    utils/            # 脱敏、错误解析、时间格式
+    styles/
+  README.md           # 待确认清单 + 运行方式 + mock 清单
+```
+
+**交付物**
+
+1. 可运行 Vue 工程；`npm install && npm run dev` 可启动。
+2. 12 个路由页面（含 2 个占位页）。
+3. API 封装层与 mock 适配层。
+4. README：待确认清单（对应 Spec P-16、P-18～P-26、P-34）、mock 清单、运行方式、目录说明。
+5. 不提交 `node_modules`、构建产物、真实密钥。
+
+**禁止事项**
+
+1. 不新增路由、页面、接口、角色、字段、枚举。
+2. 不擅自选 UI/状态管理/HTTP/图表库。
+3. 不展示 Secret、密码、Capability 明文、原始敏感样本。
+4. 不实现自批、绕过审批、控制面直连搬运入口。
+5. 不把待确认项写成既定事实。
+6. 不把原型演示数值写成业务规则。
+7. 不改输出目录名，除非用户确认。
+
+**输出前自检**
+
+1. 是否覆盖 12 个路由，占位页是否标注待确认。
+2. 是否只调用 API-01～API-18。
+3. 是否按权限矩阵显隐按钮。
+4. 是否实现五态与关键状态。
+5. 是否脱敏，是否无明文 Secret/令牌。
+6. 是否无自批、无绕过审批入口。
+7. 是否把待确认项集中到 README。
+8. 是否未擅自选型。
+9. 是否未把演示数值写成默认值。
+10. 有违反项则删除或改标“待确认”后重写。
+11. 注意项目一致性,与'D:\资料\三项\ETL-Agent 数据集成平台\项目信息'里的文件描述保持一致
+
+
+
+[输出目录]:D:\资料\三项\ETL-Agent 数据集成平台\frontend

@@ -1,0 +1,283 @@
+{
+ "API-01 no-cred": {
+  "status": 401,
+  "error_code": "AUTH-401",
+  "details": {
+   "reason": "missing_credentials"
+  },
+  "correlation_ok": true
+ },
+ "API-01 health": {
+  "status": 200,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "components",
+   "status",
+   "time",
+   "version"
+  ],
+  "fields": {
+   "status": "degraded"
+  }
+ },
+ "API-02 page1": {
+  "status": 200,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "items",
+   "page",
+   "page_size",
+   "total"
+  ],
+  "items_count": 7
+ },
+ "API-02 outsider": {
+  "status": 403,
+  "error_code": "AUTH-403",
+  "details": {
+   "reason": "not_project_member"
+  },
+  "correlation_ok": true
+ },
+ "API-02 q-rejected": {
+  "status": 400,
+  "error_code": "API-400",
+  "details": {
+   "field": "q"
+  },
+  "correlation_ok": true
+ },
+ "API-03 create": {
+  "status": 201,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "created_at",
+   "id",
+   "secret_state",
+   "status"
+  ],
+  "fields": {
+   "status": "active",
+   "id": "conn_1792828625377348400000"
+  }
+ },
+ "API-03 replay-same": {
+  "status": 201,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "created_at",
+   "id",
+   "secret_state",
+   "status"
+  ],
+  "fields": {
+   "status": "active",
+   "id": "conn_1792828625377348400000"
+  },
+  "extra": {
+   "same_id": true
+  }
+ },
+ "API-03 replay-diff-409": {
+  "status": 409,
+  "error_code": "CONN-409",
+  "details": {
+   "reason": "payload_mismatch"
+  },
+  "correlation_ok": true
+ },
+ "API-04 update": {
+  "status": 200,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "id",
+   "secret_state",
+   "status",
+   "updated_at"
+  ],
+  "fields": {
+   "status": "active",
+   "id": "conn_1792828625377348400000"
+  }
+ },
+ "API-05 test": {
+  "status": 503,
+  "error_code": "CONN-503",
+  "details": {
+   "dependency": "harness",
+   "status": "not_implemented"
+  },
+  "correlation_ok": true
+ },
+ "API-06 profile": {
+  "status": 503,
+  "error_code": "META-503",
+  "details": {
+   "dependency": "harness",
+   "status": "not_implemented"
+  },
+  "correlation_ok": true
+ },
+ "API-07 upload": {
+  "status": 503,
+  "error_code": "FILE-503",
+  "details": {
+   "dependency": "harness",
+   "status": "not_implemented"
+  },
+  "correlation_ok": true
+ },
+ "API-08 create": {
+  "status": 201,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "created_at",
+   "pipeline_id",
+   "status"
+  ],
+  "fields": {
+   "status": "draft"
+  }
+ },
+ "API-09 generation": {
+  "status": 201,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "agent_run_id",
+   "design_digest",
+   "interrupt",
+   "status",
+   "thread_id"
+  ],
+  "fields": {
+   "status": "interrupted",
+   "agent_run_id": "agent_1792828625503444300007"
+  }
+ },
+ "API-10 answers": {
+  "status": 200,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "checkpoint_ref",
+   "design_ready",
+   "next_question",
+   "status"
+  ],
+  "fields": {
+   "status": "completed",
+   "design_ready": true
+  }
+ },
+ "API-11 design": {
+  "status": 200,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "dag",
+   "diff",
+   "etl_plan_json",
+   "gate_result",
+   "hocon_text",
+   "masking",
+   "quality_contract"
+  ]
+ },
+ "API-12 prepare": {
+  "status": 503,
+  "error_code": "API-503",
+  "details": {
+   "dependency": "harness",
+   "status": "not_implemented"
+  },
+  "correlation_ok": true
+ },
+ "API-14 commit": {
+  "status": 409,
+  "error_code": "CMT-409",
+  "details": {
+   "reason": "APPROVAL_INCOMPLETE",
+   "missing_slots": [
+    "data_checker",
+    "security_checker"
+   ]
+  },
+  "correlation_ok": true
+ },
+ "API-13 decision": {
+  "status": 200,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "approval_id",
+   "decided_at",
+   "next_slot_status",
+   "status"
+  ],
+  "fields": {
+   "status": "APPROVED"
+  }
+ },
+ "API-15 get-run": {
+  "status": 200,
+  "error_code": null,
+  "details": null,
+  "correlation_ok": true,
+  "data_keys": [
+   "engine_job_id",
+   "finished_at",
+   "metrics",
+   "quality_report",
+   "recent_logs",
+   "started_at",
+   "status",
+   "supervision"
+  ],
+  "fields": {
+   "status": "running"
+  }
+ },
+ "API-16 cancel": {
+  "status": 503,
+  "error_code": "OPS-503",
+  "details": {
+   "dependency": "harness",
+   "status": "not_implemented"
+  },
+  "correlation_ok": true
+ },
+ "API-17 rollback": {
+  "status": 409,
+  "error_code": "OPS-409",
+  "details": {
+   "status": "running"
+  },
+  "correlation_ok": true
+ },
+ "API-18 benchmark": {
+  "status": 503,
+  "error_code": "BENCH-503",
+  "details": {
+   "dependency": "harness",
+   "status": "not_implemented"
+  },
+  "correlation_ok": true
+ }
+}

@@ -1,0 +1,51 @@
+ETL-Agent schema verification (sanitized excerpt)
+Date: 2026-10-23
+Target: disposable postgres:16-alpine container, database etl_agent_test
+Credential values are intentionally omitted.
+
+== Migration ==
+Command: DATABASE_URL=<redacted> python -m alembic upgrade head
+Result: success
+
+== Structure ==
+business table count (excluding alembic_version): 13
+non-internal trigger count: 6
+pipeline_versions.etl_plan_json type: jsonb
+
+Trigger names:
+trg_audit_events_no_update
+trg_audit_events_no_delete
+trg_audit_events_no_truncate
+trg_pipeline_versions_immutable
+trg_pipeline_versions_no_delete
+trg_approval_requests_decision
+
+== Guard checks ==
+INSERT users/projects/pipelines/pipeline_versions/audit_events/approval_requests/execution_runs: success
+
+UPDATE audit_events: ERROR audit_events is append-only
+DELETE FROM audit_events: ERROR audit_events is append-only
+TRUNCATE audit_events: ERROR audit_events is append-only
+
+UPDATE pipeline_versions.hocon_text after freeze: ERROR pipeline_versions content is immutable
+UPDATE pipeline_versions.is_immutable from true to false: ERROR pipeline_versions cannot be unfrozen
+DELETE FROM pipeline_versions: ERROR pipeline_versions cannot be deleted
+
+UPDATE approval_requests.decision after decision: ERROR approval decision is immutable
+UPDATE execution_runs.input_records = -1: ERROR check constraint ck_execution_runs_input_records
+INSERT pipeline_versions with non-SHA256 artifact_digest: ERROR check constraint ck_pipeline_versions_artifact_digest
+INSERT duplicate (preparation_id, required_role): ERROR unique constraint uq_approval_requests_preparation_role
+
+Final row counts stayed at their seeded values:
+audit_events=1, pipeline_versions=1, approval_requests=1, execution_runs=1
+
+== Downgrade / re-upgrade ==
+Command: DATABASE_URL=<redacted> python -m alembic downgrade base
+Result: success; business tables = 0; etl_* functions = 0
+Command: DATABASE_URL=<redacted> python -m alembic upgrade head
+Result: success
+
+== SQLite test ==
+Command: python -m pytest tests/test_schema.py -ra
+Result: 3 passed
+Coverage: 13-table metadata, migration upgrade/triggers/guards, downgrade cleanup.

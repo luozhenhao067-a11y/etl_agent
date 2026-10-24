@@ -1,0 +1,72 @@
+[
+  {
+    "api": "API-05",
+    "scenario": "connection test",
+    "expected": "503 CONN-503 / 依赖未就绪",
+    "actual": "依赖未就绪\nCONN-503 · corr_92cedee335ea4872",
+    "extra": ""
+  },
+  {
+    "api": "API-06",
+    "scenario": "profile run",
+    "expected": "503 META-503 / 依赖未就绪",
+    "actual": "依赖未就绪\nMETA-503 · corr_a3b24c7db6964da7",
+    "extra": ""
+  },
+  {
+    "api": "API-07",
+    "scenario": "file upload",
+    "expected": "503 FILE-503 / 依赖未就绪",
+    "actual": "依赖未就绪\nFILE-503 · corr_aae308611df4451c",
+    "extra": ""
+  },
+  {
+    "api": "API-12",
+    "scenario": "prepare",
+    "expected": "503 API-503 / 依赖未就绪",
+    "actual": "依赖未就绪（API-503）",
+    "extra": ""
+  },
+  {
+    "api": "API-13",
+    "scenario": "approval decision",
+    "expected": "200 success / approval_id",
+    "actual": "审批决策已记录：approved（API-13）",
+    "extra": ""
+  },
+  {
+    "api": "API-14",
+    "scenario": "commit",
+    "expected": "503 CMT-503 / 依赖未就绪",
+    "actual": "依赖未就绪\nCMT-503 · corr_160cb8e41edf4640",
+    "extra": ""
+  },
+  {
+    "api": "API-16",
+    "scenario": "cancel run",
+    "expected": "503 OPS-503 / 依赖未就绪",
+    "actual": "依赖未就绪\nOPS-503 · corr_9cff938e369548b7",
+    "extra": ""
+  },
+  {
+    "api": "API-17",
+    "scenario": "rollback",
+    "expected": "503 OPS-503 / 依赖未就绪",
+    "actual": "依赖未就绪\nOPS-503 · corr_5ae684c78c8647be",
+    "extra": ""
+  },
+  {
+    "api": "API-18",
+    "scenario": "benchmark run",
+    "expected": "503 BENCH-503 / 依赖未就绪",
+    "actual": "依赖未就绪（BENCH-503） · corr_8a66e03d7fdd4cf4",
+    "extra": ""
+  },
+  {
+    "api": "API-15",
+    "scenario": "quality page run detail",
+    "expected": "200 / metrics + quality report",
+    "actual": "error_codes_visible=True metrics_visible=True",
+    "extra": ""
+  }
+]

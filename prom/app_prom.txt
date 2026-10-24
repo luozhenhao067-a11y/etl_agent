@@ -1,0 +1,107 @@
+
+[目的]:根据接口契约生成后端接口
+[技术栈]:fastapi,uvicorn,python
+[背景]:项目信息:D:\资料\三项\ETL-Agent 数据集成平台\项目信息,
+接口文档:D:\资料\三项\ETL-Agent 数据集成平台\项目信息\接口契约.md
+前端代码:D:\资料\三项\ETL-Agent 数据集成平台\frontend
+[具体要求]:
+
+
+**范围声明**
+
+本次只交付 **FastAPI API 层**，不实现 Harness 内核、Celery、SeaTunnel 适配、Vault、真实认证、数据库迁移与建表。外部依赖一律用 **Port + Stub** 处理，不得伪造成功。
+
+| 依赖 | 本次处理 | 禁止 |
+|---|---|---|
+| Harness（PDP / Capability / Tool Broker / Replay Guard / Outbox / Ledger） | 只定义 Port 接口；Stub 抛 `NotImplementedError`；相关接口返回 `503 HARNESS_NOT_READY` | 不得在路由里内联实现 Harness 逻辑；不得返回假成功 |
+| Celery / SeaTunnel | 只定义 Port；Stub 不提交任务 | 不得伪造 Job ID、指标、质量报告 |
+| Vault / SecretProvider | 只定义 Port；Stub 返回 `503 SECRET_PROVIDER_NOT_READY` | 不得返回假 Secret、不得落盘明文 |
+| PostgreSQL | 只写 SQLAlchemy Model（限 Spec 7.1 表）+ Repository Port；**不建表、不 migrate**；Service 用 in-memory mock 返回 | 不得擅自建 Spec 未定义表；不得连真实库 |
+| 认证 | `get_current_user` 返回可切换角色的 mock 用户 | 不得自造 JWT、不得跳过权限校验 |
+
+**Port 层要求**
+
+在 `app/ports/` 下为每个外部依赖定义 Protocol/ABC：
+
+- `HarnessPort`：`pdp_decide`、`issue_capability`、`verify_capability`、`replay_guard_check`、`write_outbox`、`append_ledger`
+- `SecretPort`：`materialize`、`get_ref`
+- `ExecPort`：`submit_job`、`cancel_job`、`query_status`
+- `RepositoryPort`：按 Spec 7.1 表逐表定义读写方法
+
+Stub 实现放 `app/adapters/stub/`，方法体统一：
+
+```python
+raise NotImplementedError("HARNESS_NOT_READY")
+```
+
+路由捕获后返回 `503`，`error_code` 用契约对应码，`details` 写 `{"dependency": "harness", "status": "not_implemented"}`。
+
+**接口分层处理**
+
+| 接口类型 | 本次实现程度 |
+|---|---|
+| 纯读接口（API-01、API-02、API-11、API-15） | 完整实现：参数校验、权限、分页、脱敏、错误结构；数据来自 in-memory mock |
+| 写接口但不触发副作用（API-03、API-04、API-08、API-09、API-10、API-13） | 完整实现路由、校验、幂等、权限、审计事件写入（写 in-memory 或 log）；Repository 用 stub 存内存 |
+| 触发 Harness 副作用的接口（API-05、API-06、API-07、API-12、API-14、API-16、API-17、API-18） | 路由、校验、权限、幂等、错误结构完整；**调用 HarnessPort 后返回 503**；不得返回假 Run、假 Capability、假 Benchmark 结果 |
+| 契约缺失接口（Spec P-18～P-24） | 不创建路由；README 列清单；前端已有 mock 适配层，后端不补 |
+
+**必须完整实现的 API 层能力**
+
+1. 路径、方法、请求/响应字段、状态码与契约逐字一致。
+2. Pydantic schema 字段类型、必填/可选、枚举与契约一致。
+3. 统一响应结构与统一错误处理器。
+4. `Authorization`、`X-Correlation-Id`、`Idempotency-Key` 读取与校验。
+5. 写接口幂等：同键同载荷返回首次结果，同键不同载荷 409；用 in-memory 幂等表实现。
+6. 分页 `page`、`page_size`、`total`、`items`；上限先用 100，README 标注待确认。
+7. 脱敏序列化：手机号、邮箱、主机、JDBC URL；Secret、Capability、token_digest 永不返回。
+8. 权限校验：按 Spec 2.3 矩阵；审批接口校验角色槽、非申请人、两审批人不同。
+9. 审计事件：写接口成功后写一条 `audit_events`（in-memory 或结构化日志），README 标注“待接入 Ledger”。
+10. `/docs` 与 `/openapi.json` 可用，与契约一致。
+
+**只做 API 层时最容易犯的错，明确禁止**
+
+1. 在路由里写 `if 审批通过: 直接创建 execution_run` —— 这是绕过 Harness，禁止。
+2. 为了让前端联调，返回假的 `execution_run_id`、假 `capability_digest`、假 Benchmark 指标 —— 禁止，必须 503。
+3. 为了让 `/dashboard` 有数据，在前端聚合缺失接口 —— 后端不得补未定义聚合接口；用 in-memory mock 返回契约已有字段。
+4. 擅自建连接配置、Preparation、Outbox 等 Spec 未定义表 —— 禁止；用 in-memory repository。
+5. 自造认证方案 —— 禁止；用 mock 用户 + 角色切换。
+6. 把 Stub 写成 `return {"status": "success"}` —— 禁止；必须抛 `NotImplementedError`。
+
+**测试要求（只做 API 层版）**
+
+1. 每个接口至少：成功、参数错误、权限拒绝、依赖未就绪（503）四类用例。
+2. 写接口额外测：缺 `Idempotency-Key` → 400；同键不同载荷 → 409。
+3. 审批接口额外测：自批 → `APR-403`；职责槽冲突 → `APR-409`。
+4. Harness 接口额外测：返回 503 且 `error_code` 正确、不返回假数据。
+5. 用 `pytest` + `httpx.AsyncClient`；不依赖真实 DB、Redis、SeaTunnel、Vault。
+
+**交付物（只做 API 层版）**
+
+1. 可运行工程：`uvicorn app.main:app --reload` 启动。
+2. `/docs` 可用，覆盖契约 API-01～API-18。
+3. `README.md`：
+   - 本次范围声明（只做 API 层）；
+   - Port/Stub 清单；
+   - 返回 503 的接口清单及原因；
+   - 契约缺失接口清单（Spec P-18～P-24）；
+   - Spec 未定义表清单；
+   - mock 用户与角色切换方式；
+   - 启动方式与环境变量；
+   - 待确认项（P-16、P-18～P-28、P-31～P-34）。
+4. `requirements.txt` 或 `pyproject.toml`。
+5. 不提交 `.env`、真实密钥、数据库文件。
+
+**输出前自检（只做 API 层版）**
+
+1. 是否覆盖 API-01～API-18，路径/方法/字段与契约一致。
+2. 是否所有副作用接口都经 Port，且 Stub 返回 503，无假成功。
+3. 是否未建 Spec 未定义表，未连真实 DB/Redis/SeaTunnel/Vault。
+4. 是否未自造认证、未绕过权限、未实现自批。
+5. 是否统一错误结构、错误码只用 Spec 13.1。
+6. 是否实现幂等、分页、脱敏、审计事件桩。
+7. 是否 README 列全 503 接口、缺失接口、未定义表、待确认项。
+8. 有违反项则删除或改标“待确认”后重写。
+9. 要和前端以及项目信息保持一致
+
+
+[输出目录]:D:\资料\三项\ETL-Agent 数据集成平台\backendpoint\app

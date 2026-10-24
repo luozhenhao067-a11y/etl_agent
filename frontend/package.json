@@ -1,0 +1,20 @@
+{
+  "name": "etl-agent-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "生产级 ETL-Agent 数据集成平台 - Vue 前端控制台（技术选型待确认 P-34，见 README）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.1.0"
+  }
+}

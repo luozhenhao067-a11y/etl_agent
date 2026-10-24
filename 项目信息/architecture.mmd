@@ -1,0 +1,93 @@
+%%{init: {"flowchart": {"curve": "basis", "nodeSpacing": 18, "rankSpacing": 24, "padding": 8, "diagramPadding": 8}, "themeVariables": {"fontSize": "14px"}}}%%
+flowchart TB
+  subgraph ACCESS["1. 用户与前端"]
+    direction LR
+    ROLES["5 类角色<br/>Maker · Checker 1 · Checker 2 · Ops · Auditor"]
+    WEB["Vue Web 控制台<br/>总览 / 连接 / Studio / 运行中心 / 治理 / 审计"]
+    ROLES -->|"项目角色与只读边界"| WEB
+  end
+
+  subgraph CONTROL["2. 控制面 · FastAPI / Uvicorn"]
+    direction LR
+    API["API 路由层<br/>REST/JSON · /api/v1 · API-01～API-18<br/>认证鉴权 · 幂等 · 统一错误 · 脱敏"]
+    AUTH["身份与项目服务<br/>项目隔离 · 5 类角色 · 职责槽"]
+    ONBOARD["数据接入服务<br/>连接/Secret 引用/元数据探查<br/>文件资产/脱敏样本"]
+    STUDIO["LangGraph + 制品门禁<br/>EtlPlan/HOCON · Checkpoint<br/>语法/Schema/脱敏/预算 · 不可变版本"]
+    EXEC["受管执行服务<br/>Preparation · 2/2 四眼审批<br/>Commit · ExecutionRun · Outbox"]
+    GOV["运行治理服务<br/>取消/安全重跑/回滚 · 诊断<br/>Benchmark L0/L1/L2 · 安全进化"]
+    API --> AUTH
+    API --> ONBOARD
+    API --> STUDIO
+    API --> EXEC
+    API --> GOV
+    STUDIO --> EXEC
+  end
+  ACCESS -->|"仅调用 API-01～API-18"| CONTROL
+
+  subgraph HARNESS["3. Harness 安全执行内核"]
+    direction LR
+    ENTRY["Harness 接入层 / Kernel<br/>3.3 请求协议 · 不可绕过入口"]
+    DECIDE["PDP + Capability<br/>P0-P3 · 职责槽 · Fail-closed<br/>Ed25519 · TTL 300s"]
+    BROKER["Replay Guard + Tool Broker<br/>单次消费 · 唯一副作用出口<br/>注册工具适配"]
+    OUTBOX["Transactional Outbox<br/>PENDING→PUBLISHED→CONSUMED<br/>物理载体待确认 P-06"]
+    LEDGER["Evidence Ledger<br/>只追加 · SHA256 哈希链<br/>Ed25519 检查点"]
+    ENTRY --> DECIDE
+    DECIDE --> BROKER
+    ENTRY --> OUTBOX
+    BROKER --> LEDGER
+    OUTBOX --> LEDGER
+  end
+  CONTROL -->|"业务服务只经 Harness 执行副作用"| HARNESS
+
+  subgraph ASYNC["4. Celery 异步控制面"]
+    direction LR
+    REDIS[("Redis<br/>Celery Broker/Backend<br/>Replay 原子占位")]
+    WORKER["Celery Beat / Worker<br/>dispatch_outbox · execute_etl_run<br/>run_benchmark · supervision_tick"]
+    SUPERVISION["运行监督<br/>行数/字节/时长/放大比/拒绝率<br/>WARN · PAUSE_WRITE · KILL_JOB"]
+    REDIS -->|"执行/评测/维护逻辑队列"| WORKER
+    WORKER --> SUPERVISION
+  end
+  HARNESS -->|"Outbox 至少一次投递"| ASYNC
+
+  subgraph INFRA["5. 基础设施与外部系统"]
+    direction LR
+    PG[("PostgreSQL<br/>PRD 7.1 的 13 张表<br/>audit_events 哈希链")]
+    PENDING["待确认持久化<br/>连接/Profile/Preparation/Outbox<br/>JTI/Benchmark/Ledger 链序<br/>P-04～P-09"]
+    VAULT[("Vault KV v2<br/>Secret 密文/引用")]
+    PROVIDERS["模型 Provider<br/>OpenAI 兼容 / DeepSeek / Qwen"]
+    SOURCES["源系统<br/>MySQL/PostgreSQL/Oracle/Doris/ClickHouse<br/>CSV/Excel/JSON/Parquet/S3/MinIO/REST API"]
+    PG ~~~ PENDING ~~~ VAULT ~~~ PROVIDERS ~~~ SOURCES
+  end
+  CONTROL -. "控制面事务 / Provider 适配" .-> INFRA
+  HARNESS -. "SecretProvider / Ledger / 唯一约束" .-> INFRA
+  ASYNC -. "Replay / 任务状态 / 监督快照" .-> INFRA
+
+  subgraph DATA["6. 数据面 · Apache SeaTunnel Zeta"]
+    direction LR
+    ST["SeaTunnel Zeta<br/>Job 提交 / 状态 / Kill<br/>读取源系统并执行数据搬运"]
+    TABLES[("影子表 / 错误表<br/>有效数据 / 错误码分流")]
+    QUALITY["QualityContract<br/>质量报告 · 未通过禁止 Swap"]
+    SWAP["原子 Swap 门禁<br/>质量通过且监督未硬中断"]
+    FORMAL[("Doris 正式表<br/>REPLACE TABLE ... swap=true")]
+    ST --> TABLES
+    TABLES --> QUALITY
+    QUALITY --> SWAP
+    SWAP --> FORMAL
+  end
+  INFRA -->|"源系统读取 / Secret 受管物化 / 目标表发布"| DATA
+
+  classDef access fill:#E8F2FF,stroke:#2B6CB0,color:#102A43
+  classDef control fill:#F7F9FC,stroke:#52677D,color:#17212B
+  classDef harness fill:#FFF4E6,stroke:#B45309,color:#3D2400
+  classDef async fill:#E8F8F1,stroke:#16856A,color:#0B3B2E
+  classDef infra fill:#F2F4F7,stroke:#667085,color:#344054
+  classDef data fill:#F3EDFF,stroke:#6D4BC3,color:#2B1A4F
+  classDef pending fill:#FDECEC,stroke:#B42318,color:#5B1914
+
+  class ROLES,WEB access
+  class API,AUTH,ONBOARD,STUDIO,EXEC,GOV control
+  class ENTRY,DECIDE,BROKER,OUTBOX,LEDGER harness
+  class REDIS,WORKER,SUPERVISION async
+  class PG,VAULT,PROVIDERS,SOURCES infra
+  class PENDING pending
+  class ST,TABLES,QUALITY,SWAP,FORMAL data
