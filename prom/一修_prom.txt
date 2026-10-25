@@ -1,0 +1,44 @@
+[修改范围]:D:\资料\三项\ETL-Agent 数据集成平台\backendpoint
+[执行功能要求]:
+1. 新增 Celery 应用和 Worker；Redis 作为 broker 和 result backend。
+2. 定义至少一个真实可执行的 Celery task，用于实际处理任务，不能是 sleep 假装跑。
+3. 实现 CeleryExecAdapter，实现现有 ExecPort：
+   - 提交任务返回真实 Celery task ID。
+   - 查询状态使用 AsyncResult(task_id).state。
+   - 开启 task_track_started=True，确保状态流包含 STARTED。
+   - 处理超时、失败、异常，并把错误信息回传到报告。
+4. 上层业务只依赖 ExecPort，不得直接 import Celery。
+5. 保留未来接 SeaTunnel 的接口形状：提交返回 job/task ID，查询状态，获取结果。
+
+[评测功能要求]:
+1. 替换 _evaluate 中的数据加载和评分逻辑，从 PostgreSQL 读取数据并执行真实 SQL 计算。
+2. 表名、字段名、主键、关联关系、样本范围必须通过配置或环境变量提供，禁止硬编码臆造的表名和字段名。若项目中没有明确配置，先输出需要确认的配置清单，并提供示例配置。
+3. 实现以下指标，全部用 SQL 计算：
+   - 完整性：非空必需字段数 / 总必需字段数。
+   - 准确性：按主键对账一致的记录数 / 参与对账的总记录数。
+   - 一致性：关联校验通过的记录数 / 关联校验总记录数。
+4. 临时总分公式：
+   总分 = 0.4 × 完整性 + 0.4 × 准确性 + 0.2 × 一致性。
+5. 临时公式必须写入 README 或评分说明文档，包含指标定义、字段来源、样本范围、权重、合格线。
+6. 报告标记：
+   - execution_mode: "celery"
+   - execution_simulated: false
+   - scoring_mode: "custom_provisional"
+   - scoring_simulated: false
+   - dataset_type: "simulated"（如果 PostgreSQL 中确实是模拟数据）
+   - data_source: "postgres"
+   - 不再使用笼统的 simulated:true 作为唯一标记。
+7. 如果后续 P-24 确认，只允许替换 _evaluate 中的公式和数据加载逻辑，报告结构和上层流程保持不变。
+
+[背景]:
+前端代码:D:\资料\三项\ETL-Agent 数据集成平台\frontend
+
+[配置]:
+生成.env文件,所有需要的配置由人工填入
+
+[流程]:
+先按要求交付留空的.env文件(带中文注释,说明每个空应该填什么),且第一次交付后，原应用仍能启动，不要求 Celery 和 PG 评测已生效,
+交付后提醒我在.env文件中填入需要的配置,
+待我填入所需配置后,
+按要求交付功能,
+运行测试
